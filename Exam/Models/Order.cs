@@ -7,7 +7,7 @@ namespace Exam.Models;
 public class Order
 {
     public int Id { get; set; }
-    public User User { get; set; }
+    public MyUser User { get; set; }
 
     [ForeignKey(nameof(User))]
     public int UserId { get; set; }

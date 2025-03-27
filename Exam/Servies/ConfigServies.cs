@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
 
-namespace Exam;
+namespace Exam.Servies;
 
 public class ConfigServies
 {

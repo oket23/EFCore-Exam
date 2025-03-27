@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace Exam.Models;
 
 [Table("USERS")]
-public class User
+public class MyUser
 {
     public int Id { get; set; }
     [Required]
@@ -15,11 +15,16 @@ public class User
     [MaxLength(32)]
     public string LastName { get; set; }
     [Required]
+    [MaxLength(32)]
+    public string Login { get; set; }
+    [Required]
     public string Password { get; set; }
     [Required]
-    public DateTime BDate { get; set; }
+    [Column(TypeName = "DateTime")]
+    public DateOnly BDate { get; set; }
     [Required]
-    public DateTime RegDate { get; set; }
+    [Column(TypeName = "DateTime")]
+    public DateOnly RegDate { get; set; }
     [Required]
     [Column(TypeName = "CHAR(16)")]
     public string CartNumber { get; set; }
