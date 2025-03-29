@@ -1,4 +1,4 @@
-﻿namespace Exam;
+﻿namespace Exam.Class;
 
 public class Config
 {

@@ -25,7 +25,7 @@ public class UserServies
     }
     public bool IsValidPassword(string password,ChatId id)
     {
-        if (password.Length < 8 && password.Length > 32)
+        if (password.Length < 8 || password.Length > 32)
         {
             _bot.SendMessage(id, "Пароль має бути довшим за 8 символів.");
             return false;
@@ -67,21 +67,43 @@ public class UserServies
 
     public bool IsValidLogin(string login, long id)
     {
-        if(_context.Users.Any(x => x.Login.Equals(login)) || login.Length < 4 || login.Length > 32)
+        if(_context.Users.Any(x => x.Login.Equals(login)) )
         {
             _bot.SendMessage(id, "Такий логін вже існує, спробуй інший!");
+            return false;
+        }
+        if(login.Length < 4 || login.Length > 32)
+        {
+            _bot.SendMessage(id, "Логін повинен бути довшим за 4 символи та коротшим за 32!");
             return false;
         }
         return true;
     }
 
-    public string CapitalizeFirstLetter(string input)
+    public string CapitalizeFirstLetter(string text)
     {
-        if (string.IsNullOrEmpty(input))
+        if (string.IsNullOrEmpty(text))
         {
-            return input;
+            return text;
         }
 
-        return input.Substring(0, 1).ToUpper() + input.Substring(1).ToLower();
+        return text.Substring(0, 1).ToUpper() + text.Substring(1).ToLower();
+    }
+
+    public bool IsValidLoginAndPassword(string login, string password, ChatId id)
+    {
+        var user = _context.Users.FirstOrDefault(u => u.Login == login);
+        if (user == null)
+        {
+            _bot.SendMessage(id, "Такого логіна не існує!");
+            return false;
+        }
+        if (!BCrypt.Net.BCrypt.Verify(password, user.Password))
+        {
+            _bot.SendMessage(id, "Невірний пароль!");
+            return false;
+        }
+
+        return true;
     }
 }
