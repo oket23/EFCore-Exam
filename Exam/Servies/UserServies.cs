@@ -8,12 +8,10 @@ public class UserServies
 {
     private readonly TelegramBotClient _bot;
     private readonly ExamContext _context;
-    private List<MyUser> _users;
     public UserServies(TelegramBotClient bot,ExamContext context)
     {
         _bot = bot;
         _context = context;
-        _users = new List<MyUser>();
     }
     public bool IsAdmin(string name)
     {

@@ -6,9 +6,7 @@ using Exam.Models;
 using Telegram.Bot.Types.ReplyMarkups;
 using Exam.Servies;
 using System.Text.RegularExpressions;
-using BCrypt.Net;
 using Exam.Class;
-using Microsoft.AspNetCore.Http;
 
 namespace Exam;
 
@@ -19,18 +17,33 @@ public class Program
         using var cts = new CancellationTokenSource();
         var configServies = new ConfigServies();
         var bot_API = configServies.GetApi();
+
         var logRegKeyboard = new InlineKeyboardMarkup(new[] { new[] { InlineKeyboardButton.WithCallbackData("Увійти", "log"), InlineKeyboardButton.WithCallbackData("Зареєструватися", "reg") } });
         var logYesOrNoKeyboard = new InlineKeyboardMarkup(new[] { new[] { InlineKeyboardButton.WithCallbackData("Так", "yes"), InlineKeyboardButton.WithCallbackData("Ні", "no") } });         
         var adminKeyboard = new InlineKeyboardMarkup(new[]{
-                new[] {InlineKeyboardButton.WithCallbackData("Робота з товаром", "admin1")},
-                new[]{ InlineKeyboardButton.WithCallbackData("Переглянути усі товари", "admin2")},
-                new[] {InlineKeyboardButton.WithCallbackData("Вибрати товар по id", "admin3")},
-                new[] {InlineKeyboardButton.WithCallbackData("Переглянути статистику", "admin4")},
+                new[] {InlineKeyboardButton.WithCallbackData("Робота з товаром", "productServies")},
+                new[] {InlineKeyboardButton.WithCallbackData("Переглянути усі товари", "allProduct")},
+                new[] {InlineKeyboardButton.WithCallbackData("Вибрати товар по id", "productById")},
+                new[] {InlineKeyboardButton.WithCallbackData("Переглянути статистику", "stats")},
+                new[] {InlineKeyboardButton.WithCallbackData("Вийти з акаунта", "sign out") }
                 });
         var userKeyboard = new InlineKeyboardMarkup(new[]{
-                new[] {InlineKeyboardButton.WithCallbackData("Переглянути усі товари", "user1") },
-                new[] {InlineKeyboardButton.WithCallbackData("Вибрати товар по id", "user2") },
-                new[] {InlineKeyboardButton.WithCallbackData("Оформити замовлення", "user3")}
+                new[] {InlineKeyboardButton.WithCallbackData("Переглянути усі товари", "allProduct") },
+                new[] {InlineKeyboardButton.WithCallbackData("Вибрати товар по id", "productById") },
+                new[] {InlineKeyboardButton.WithCallbackData("Оформити замовлення", "order")},
+                new[] {InlineKeyboardButton.WithCallbackData("Вийти з акаунта", "sign out") }
+                });
+        var productKeyboard = new InlineKeyboardMarkup(new[]{
+                new[] {InlineKeyboardButton.WithCallbackData("Додати товар", "addProd") },
+                new[] {InlineKeyboardButton.WithCallbackData("Оновити товар", "updateProd") },
+                new[] {InlineKeyboardButton.WithCallbackData("Видалити", "deleteProd") },
+                new[] {InlineKeyboardButton.WithCallbackData("Повернутися", "back") }
+                });
+        var productUpdateKeyboard = new InlineKeyboardMarkup(new[]{
+                new[] {InlineKeyboardButton.WithCallbackData("Ім'я", "newName"), InlineKeyboardButton.WithCallbackData("Опис", "newDescription") },
+                new[] {InlineKeyboardButton.WithCallbackData("Ціна", "newPrice"),InlineKeyboardButton.WithCallbackData("Знижка", "newDiscount") },
+                new[] {InlineKeyboardButton.WithCallbackData("Категорія", "newCategory") },
+                new[] {InlineKeyboardButton.WithCallbackData("Повернутися", "newBack") }
                 });
 
         var bot = new TelegramBotClient(bot_API,cancellationToken: cts.Token);
@@ -38,7 +51,11 @@ public class Program
         var userSessions = new Dictionary<long, UserSession>();
         var context = new ExamContext();
         var userServies = new UserServies(bot, context);
+        var productServies = new ProductServies(bot, context);
         var emojiPattern = @"[\u1F600-\u1F64F\u2702\u2705\u2615\u2764\u1F4A9]+";
+        var tempProduct = new Product();
+        var producStatus = "null";
+        var updateStatus = "null";
 
 
         bot.OnMessage += OnMessage;
@@ -63,6 +80,7 @@ public class Program
                 var session = userSessions[query.Message.Chat.Id];
 
                 await bot.AnswerCallbackQuery(query.Id);
+
                 switch (query.Data)
                 {
                     #region log reg
@@ -84,7 +102,7 @@ public class Program
                         await bot.SendMessage(query.Message.Chat.Id, "Ви успішно зареєструвалися!");
                         context.Add(session.TempUser);
                         context.SaveChanges();
-                        await bot.SendMessage(query.Message.Chat.Id, $"Привіт, обирай дію:", replyMarkup: logRegKeyboard);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Привіт, виберіть дію:", replyMarkup: logRegKeyboard);
                         session.UserStatus = "null";
                         break;
                     case "yes":
@@ -94,13 +112,84 @@ public class Program
                         session.UserStatus = "name";
                         break;
                     #endregion
-                    #region admin
-                    case "admin1":
+                    case "productServies":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, "Що саме ви хочете зробити з товаром?", replyMarkup:productKeyboard);
+                        break;
+                    case "allProduct":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await productServies.ShowAllProduct(query.Message.Chat.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Виберіть дію:", replyMarkup: (session.TempUser.IsAdmin) ? adminKeyboard : userKeyboard);
+                        break;
+                    case "productById":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Напишіть ID продукту для пошуку:");
+                        producStatus = "wait id";                       
+                        break;
+                    case "stats":
 
                         break;
+                    case "order":
 
+                        break;
+                    case "sign out":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Привіт, обирай дію:", replyMarkup: logRegKeyboard);
+                        session.UserStatus = "null";
+                        session.TempUser = new MyUser();
+                        break;
+                    #region product
+                    case "addProd":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть назву продукту:");
+                        producStatus = "productName";
+                        break;
+                    case "updateProd":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть Id продукту для оновлення:");
+                        producStatus = "update";
+                        break;
+                    case "deleteProd":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть Id продукту для видалення:");
+                        producStatus = "delete";
+                        break;
+                    case "back":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Виберіть дію:", replyMarkup: (session.TempUser.IsAdmin) ? adminKeyboard : userKeyboard);
+                        break;
+                    case "newName":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть нове ім'я:");
+                        updateStatus = "newName";
+                        break;
+                    case "newDescription":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть новий опис:");
+                        updateStatus = "newDescription";
+                        break;
+                    case "newPrice":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть нову ціну:");
+                        updateStatus = "newPrice";
+                        break;
+                    case "newCategory":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть нову категорію:");
+                        updateStatus = "newCategory";
+                        break;
+                    case "newDiscount":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Введіть нову знижку:");
+                        updateStatus = "newDiscount";
+                        break;
+                    case "newBack":
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, "Що саме ви хочете зробити з товаром?", replyMarkup: productKeyboard);
+                        updateStatus = "null";
+                        break;
+                        #endregion
 
-                    #endregion
                 }
             }
         }
@@ -153,6 +242,7 @@ public class Program
                             session.TempUser = context.Users.FirstOrDefault(x => x.Login == login_);
                             await bot.SendMessage(msg.Chat.Id, "Ви успішно увійшли!");
                             await bot.SendMessage(msg.Chat.Id, "Виберіть, що будемо робити:", replyMarkup:(session.TempUser.IsAdmin)?adminKeyboard:userKeyboard);
+                            session.UserStatus = "verify";
                         }
                         else
                         {
@@ -172,6 +262,10 @@ public class Program
                             await bot.SendMessage(msg.Chat.Id, "Імя успішно додано!");
                             await bot.SendMessage(msg.Chat.Id, "Введіть ваше прізвище:");
                         }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Як вас коректно звати?");
+                        }
                         break;
                     case "lastname":
                         string lastName = msg.Text.Trim();
@@ -181,7 +275,11 @@ public class Program
                             session.UserStatus = "login";
                             session.TempUser.LastName = lastName;
                             await bot.SendMessage(msg.Chat.Id, "Прізвище успішно додано!");
-                            await bot.SendMessage(msg.Chat.Id, "Придумайте свій унікальний логін!");
+                            await bot.SendMessage(msg.Chat.Id, "Придумайте свій унікальний логін:");
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть ваше коректне прізвище:");
                         }
                         break;
                     case "login":
@@ -194,6 +292,10 @@ public class Program
                             await bot.SendMessage(msg.Chat.Id, "Логін успішно додано!");
                             await bot.SendMessage(msg.Chat.Id, "Придумайте пароль і відправте мені!");
                         }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Придумайте коректний унікальний логін:");
+                        }
                         break;
                     case "password":
                         session.Password = msg.Text.Trim();
@@ -204,6 +306,10 @@ public class Program
                             session.UserStatus = "bdate";
                             var passwordHash = BCrypt.Net.BCrypt.HashPassword(session.Password);
                             session.TempUser.Password = passwordHash;
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Придумайте коректний пароль і відправте мені!");
                         }
                         break;
                     case "bdate":
@@ -220,8 +326,7 @@ public class Program
                         }
                         else
                         {
-                            await bot.SendMessage(msg.From.Id, "Будь ласка, введіть дійсну дату!");
-                            await bot.SendMessage(msg.Chat.Id, "Тепер напишіть вашу дату народження у форматі yyyy-mm-dd:");
+                            await bot.SendMessage(msg.From.Id, "Будь ласка, введіть дійсну дату!");                        
                         }
                         break;
                     case "card":
@@ -239,8 +344,247 @@ public class Program
                             await bot.SendMessage(msg.Chat.Id, "Бажаєте щось змінити?", replyMarkup: logYesOrNoKeyboard);
                             session.UserStatus = "null";
                         }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Залишилося тільки написати номер вашої картки:");
+                        }
                         break;
-                        #endregion
+                    #endregion                            
+                }
+                switch (producStatus)
+                {
+                    case "wait id":
+                        var id = int.Parse(msg.Text.Trim());
+                        await productServies.ShowProductById(msg.Chat.Id, id);
+                        await bot.SendMessage(msg.Chat.Id, $"Виберіть дію:", replyMarkup: (session.TempUser.IsAdmin) ? adminKeyboard : userKeyboard);
+                        producStatus = "null";
+                        break;
+                    case "productName":
+                        var name = msg.Text.Trim();
+                        if(productServies.IsValidName(msg.Chat.Id, name))
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть опис для продукта:");
+                            producStatus = "description";
+                            tempProduct.Name = name;
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, $"Введіть назву продукту:");
+                        }
+                        break;
+                    case "description":
+                        var description = msg.Text.Trim();
+                        if(productServies.IsValidDescription(msg.Chat.Id, description))
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть ціну продукта:");
+                            producStatus = "price";
+                            tempProduct.Description = description;
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть опис для продукта:");
+                        }
+                        break;
+                    case "price":
+                        if (decimal.TryParse(msg.Text.Trim(), out decimal price))
+                        {
+                            if(productServies.IsValidPrice(msg.Chat.Id, price))
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Введіть знижку (якщо немає напишіть 0):");
+                                producStatus = "discount";
+                                tempProduct.Price = price;
+                            }
+                            else
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Введіть коректну ціну продукта (наприклад, 100,50):");
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть коректну ціну продукта (наприклад, 100,50):");
+                        }
+                        break;
+                    case "discount":
+                        if (msg.Text.Trim() == "0")
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть категорію продукта:");
+                            producStatus = "category";
+                        }
+                        else
+                        {
+                            if(int.TryParse(msg.Text.Trim(),out int discount))
+                            {
+                               if(!productServies.IsValidDiscount(msg.Chat.Id, discount))
+                               {
+                                    tempProduct.DiscountPercentage = discount;
+                                    await bot.SendMessage(msg.Chat.Id, "Введіть категорію продукта:");
+                                    producStatus = "category";                    
+                               }
+                               else
+                               {
+                                   await bot.SendMessage(msg.Chat.Id, "Введіть знижку(якщо немає напишіть 0):");
+                                   break;
+                               }
+                            }
+                            else
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Введіть знижку(якщо немає напишіть 0):");
+                            }  
+                        }
+                        break;
+                    case "category":
+                        var category = msg.Text.Trim();
+                        if(productServies.IsValidCategory(msg.Chat.Id, category))
+                        {
+                            tempProduct.Category = category;
+                            productServies.AddProduct(tempProduct);
+                            await bot.SendMessage(msg.Chat.Id, "Продукт успішно додано!", replyMarkup: (session.TempUser.IsAdmin) ? adminKeyboard : userKeyboard);
+                            producStatus = "null";
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть категорію продукта:");
+                        }
+                        break;
+                    case "delete":
+                        if(int.TryParse(msg.Text.Trim(),out int productId))
+                        {
+                            var product = context.Products.Find(productId);
+                            if(product == null)
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Продукт з таким ID не знайдено!");
+                                await bot.SendMessage(msg.Chat.Id, "Введіть коректне ID продукта для видалення:");
+                            }
+                            else
+                            {
+                                productServies.DeleteProduct(product);
+                                await bot.SendMessage(msg.Chat.Id, "Продукт успішно видалено!", replyMarkup: (session.TempUser.IsAdmin) ? adminKeyboard : userKeyboard);
+                            }  
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть коректне ID продукта для видалення:");
+                        }
+                        
+                        break;
+                    case "update":
+                        if (int.TryParse(msg.Text.Trim(), out int prodId))
+                        {
+                            tempProduct = context.Products.Find(prodId);
+                            if(tempProduct != null)
+                            {
+                                producStatus = "null";
+                                await bot.SendMessage(msg.Chat.Id, "Виберіть що ви хочете оновити:",replyMarkup:productUpdateKeyboard);
+                            }
+                            else
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Продукт з таким ID не знайдено!");
+                                await bot.SendMessage(msg.Chat.Id, "Введіть коректне ID продукта для оновлення:");
+                            }
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть коректне ID продукта для оновлення:");
+                        }
+                        break;
+                }
+                switch (updateStatus)
+                {
+                    case "newName":
+                        var name = msg.Text.Trim();
+                        if (productServies.IsValidName(msg.Chat.Id, name))
+                        {
+                            tempProduct.Name = name;
+                            productServies.UpdateProduct(tempProduct);
+                            updateStatus = "null";
+                            await bot.SendMessage(msg.Chat.Id, "Зміну успішно виконано!", replyMarkup: productUpdateKeyboard);
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, $"Введіть нове коректне ім'я:");
+                        }
+                        break;
+                    case "newDescription":
+                        var description = msg.Text.Trim();
+                        if (productServies.IsValidDescription(msg.Chat.Id, description))
+                        {
+                            tempProduct.Description = description;
+                            productServies.UpdateProduct(tempProduct);
+                            updateStatus = "null";
+                            await bot.SendMessage(msg.Chat.Id, "Зміну успішно виконано!", replyMarkup: productUpdateKeyboard);
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, $"Введіть новий коректний опис:");
+                        }
+                        break;
+                    case "newPrice":
+                        if (decimal.TryParse(msg.Text.Trim(), out decimal price))
+                        {
+                            if (productServies.IsValidPrice(msg.Chat.Id, price))
+                            {
+                                tempProduct.Price = price;
+                                productServies.UpdateProduct(tempProduct);
+                                updateStatus = "null";
+                                await bot.SendMessage(msg.Chat.Id, "Зміну успішно виконано!", replyMarkup: productUpdateKeyboard);
+                            }
+                            else
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Введіть коректну нову ціну продукта (наприклад, 100,50):");
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть коректну ціну продукта (наприклад, 100,50):");
+                        }
+                        break;
+                    case "newCategory":
+                        var category = msg.Text.Trim();
+                        if (productServies.IsValidCategory(msg.Chat.Id, category))
+                        {
+                            tempProduct.Category = category;
+                            productServies.UpdateProduct(tempProduct);
+                            updateStatus = "null";
+                            await bot.SendMessage(msg.Chat.Id, "Зміну успішно виконано!", replyMarkup: productUpdateKeyboard);
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть коректну нову категорію продукта:");
+                        }
+                        break;
+                    case "newDiscount":
+                        if (msg.Text.Trim() == "0")
+                        {
+                            tempProduct.DiscountPercentage = null;
+                            productServies.UpdateProduct(tempProduct);
+                            updateStatus = "null";
+                            await bot.SendMessage(msg.Chat.Id, "Зміну успішно виконано!", replyMarkup: productUpdateKeyboard);
+                        }
+                        else
+                        {
+                            if (int.TryParse(msg.Text.Trim(), out int discount))
+                            {
+                                if (productServies.IsValidDiscount(msg.Chat.Id, discount))
+                                {
+                                    tempProduct.DiscountPercentage = discount;
+                                    productServies.UpdateProduct(tempProduct);
+                                    updateStatus = "null";
+                                    await bot.SendMessage(msg.Chat.Id, "Зміну успішно виконано!", replyMarkup: productUpdateKeyboard);
+                                }
+                                else
+                                {
+                                    await bot.SendMessage(msg.Chat.Id, "Введіть коректну нову знижку(якщо немає напишіть 0):");
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Введіть коректну нову знижку(якщо немає напишіть 0):");
+                            }
+                        }
+                        break;
                 }
             }
             else
@@ -248,6 +592,7 @@ public class Program
                 await bot.SendMessage(msg.Chat.Id, "Я приймаю тільки текст!");
             }
         }
+      
     }
 
 }
