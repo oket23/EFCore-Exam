@@ -52,6 +52,7 @@ public class Program
         var context = new ExamContext();
         var userServies = new UserServies(bot, context);
         var productServies = new ProductServies(bot, context);
+        var orderServies = new OrderServies(bot, context);
         var emojiPattern = @"[\u1F600-\u1F64F\u2702\u2705\u2615\u2764\u1F4A9]+";
         var tempProduct = new Product();
         var producStatus = "null";
@@ -123,20 +124,38 @@ public class Program
                         break;
                     case "productById":
                         await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
-                        await bot.SendMessage(query.Message.Chat.Id, $"Напишіть ID продукту для пошуку:");
+                        await bot.SendMessage(query.Message.Chat.Id, $"Напишіть ID продукта для пошуку:");
                         producStatus = "wait id";                       
                         break;
                     case "stats":
-
+                        await bot.SendMessage(query.Message.Chat.Id, "Статистик по замовленням:");
+                        var orderStats = context.Orders
+                            .GroupBy(x => new { x.ProductId, x.Product.Name, x.Product.Price, x.Product.DiscountPercentage })
+                            .Select(x => new
+                            {
+                                ProductName = x.Key.Name,
+                                OrderCount = x.Count(),
+                                TotalPrice = x.Count() * x.Key.Price * (1 - (x.Key.DiscountPercentage ?? 0) / 100m)
+                            })
+                            .ToList();
+                        string result = string.Join("\n", orderStats.Select(item => $"Товар: {item.ProductName}, Кількість замовлень: {item.OrderCount}, Сумарна ціна: {item.TotalPrice:F3}"));
+                        await bot.SendMessage(query.Message.Chat.Id, result);
+                        await bot.SendMessage(query.Message.Chat.Id, "Виберіть дію:", replyMarkup: (session.TempUser.IsAdmin) ? adminKeyboard : userKeyboard);
+                        
                         break;
                     case "order":
-
+                        await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
+                        productServies.ShowAllProduct(query.Message.Chat.Id);
+                        await bot.SendMessage(query.Message.Chat.Id, $"Напишіть ID продукту покупки:");
+                        session.UserStatus = "order";
                         break;
                     case "sign out":
                         await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
                         await bot.SendMessage(query.Message.Chat.Id, $"Привіт, обирай дію:", replyMarkup: logRegKeyboard);
                         session.UserStatus = "null";
                         session.TempUser = new MyUser();
+                        tempProduct = new Product();
+                        
                         break;
                     #region product
                     case "addProd":
@@ -223,6 +242,7 @@ public class Program
                     await bot.SendMessage(msg.Chat.Id, $"Привіт, обирай дію:", replyMarkup: logRegKeyboard);
                     session.UserStatus = "null";
                     session.TempUser = new MyUser();
+                    tempProduct = new Product();
                 }
 
                 switch (session.UserStatus)
@@ -349,7 +369,39 @@ public class Program
                             await bot.SendMessage(msg.Chat.Id, "Залишилося тільки написати номер вашої картки:");
                         }
                         break;
-                    #endregion                            
+                    #endregion
+                    case "order":
+                        if(int.TryParse(msg.Text.Trim(), out int id))
+                        {
+                            var productToOrder = context.Products.Find(id);
+                            if (productToOrder == null)
+                            {
+                                await bot.SendMessage(msg.Chat.Id, "Продукта з таким ID не знайдено!");
+                                await bot.SendMessage(msg.Chat.Id, "Введіть коректний ID продукта для купівлі:");
+                                break;
+                            }
+                            else
+                            {
+                                var order = new Order()
+                                {
+                                    UserId = session.TempUser.Id,
+                                    ProductId = id,
+                                    OrderDate = DateTime.Now,
+                                    Product = productToOrder,
+                                    User = session.TempUser
+                                };
+                                orderServies.AddOrder(order);
+                                session.UserStatus = "null";
+                                await bot.SendMessage(msg.Chat.Id, $"Ви оформили:");
+                                await productServies.ShowProductById(msg.Chat.Id, id);
+                                await bot.SendMessage(msg.Chat.Id, "Замовлення успішно оформлено!", replyMarkup: (session.TempUser.IsAdmin) ? adminKeyboard : userKeyboard);                              
+                            }
+                        }
+                        else
+                        {
+                            await bot.SendMessage(msg.Chat.Id, "Введіть коректний ID продукта для купівлі:");
+                        }                                                                 
+                        break;
                 }
                 switch (producStatus)
                 {
@@ -360,7 +412,9 @@ public class Program
                         producStatus = "null";
                         break;
                     case "productName":
+                        tempProduct = new Product();
                         var name = msg.Text.Trim();
+
                         if(productServies.IsValidName(msg.Chat.Id, name))
                         {
                             await bot.SendMessage(msg.Chat.Id, "Введіть опис для продукта:");
@@ -587,10 +641,22 @@ public class Program
                         break;
                 }
             }
+            else if (msg.Animation != null)
+            {
+                string animation = msg.Animation.FileId;
+                await bot.SendAnimation(msg.Chat.Id, animation);
+            }
+            else if (msg.Sticker != null)
+            {
+                string sticker = msg.Sticker.FileId;
+                await bot.SendStickerAsync(msg.Chat.Id, sticker);
+            }
             else
             {
                 await bot.SendMessage(msg.Chat.Id, "Я приймаю тільки текст!");
             }
+            
+            
         }
       
     }

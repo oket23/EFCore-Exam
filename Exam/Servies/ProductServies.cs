@@ -44,7 +44,7 @@ public class ProductServies
     {
         var allProduct = _context.Products
             .OrderBy(x => x.Name)
-            .Select(x => $"{x.Id} {x.Name} {x.Description} {x.Price} {x.DiscountPercentage}{(x.DiscountPercentage==null?"":"%")} {x.Category}")
+            .Select(x => $"{x.Id} {x.Name} {x.Description} {x.Price}$ {(x.DiscountPercentage==null?"0": x.DiscountPercentage)}% {x.Category}")
             .ToList();
 
         if (allProduct.Any())
@@ -63,7 +63,7 @@ public class ProductServies
         var productById = _context.Products.Find(productId);
         if(productById != null)
         {
-            await _bot.SendMessage(id, $"{productById.Name} {productById.Description} {productById.Price} {productById.DiscountPercentage} {productById.Category}");
+            await _bot.SendMessage(id, $"Назва: {productById.Name}\nОпис: {productById.Description}\nЦіна: {productById.Price}$\nЗнижка: {((productById.DiscountPercentage == null)?"0":productById.DiscountPercentage)}%\nКатегорія: {productById.Category}");
         }
         else
         {
