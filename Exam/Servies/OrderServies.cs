@@ -21,5 +21,21 @@ public class OrderServies
             _context.SaveChanges();
         }
     }
+    public void RemoveOrder(Order order)
+    {
+        if (order != null)
+        {
+            _context.Remove(order);
+            _context.SaveChanges();
+        }
+    }
+    public void UpdateOrder(Order order)
+    {
+        if (order != null)
+        {
+            _context.Update(order);
+            _context.SaveChanges();
+        }
+    }
 
 }

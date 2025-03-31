@@ -100,10 +100,9 @@ public class Program
                     #region yes no
                     case "no":
                         await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
-                        await bot.SendMessage(query.Message.Chat.Id, "Ви успішно зареєструвалися!");
+                        await bot.SendMessage(query.Message.Chat.Id, "Ви успішно зареєструвалися!", replyMarkup: logRegKeyboard);
                         context.Add(session.TempUser);
                         context.SaveChanges();
-                        await bot.SendMessage(query.Message.Chat.Id, $"Привіт, виберіть дію:", replyMarkup: logRegKeyboard);
                         session.UserStatus = "null";
                         break;
                     case "yes":
@@ -159,6 +158,7 @@ public class Program
                         break;
                     #region product
                     case "addProd":
+                        session.UserStatus = "null";
                         await bot.DeleteMessage(query.Message.Chat.Id, query.Message.Id);
                         await bot.SendMessage(query.Message.Chat.Id, $"Введіть назву продукту:");
                         producStatus = "productName";
@@ -273,6 +273,7 @@ public class Program
                     #endregion
                     #region reg
                     case "name":
+                        session.TempUser = new MyUser();
                         var name = msg.Text.Trim();
                         name = userServies.CapitalizeFirstLetter(name);
                         if (!string.IsNullOrEmpty(name))
@@ -414,6 +415,7 @@ public class Program
                     case "productName":
                         tempProduct = new Product();
                         var name = msg.Text.Trim();
+                        name = CapitalizeFirstLetter(name);
 
                         if(productServies.IsValidName(msg.Chat.Id, name))
                         {
@@ -428,7 +430,8 @@ public class Program
                         break;
                     case "description":
                         var description = msg.Text.Trim();
-                        if(productServies.IsValidDescription(msg.Chat.Id, description))
+                        description = CapitalizeFirstLetter(description);
+                        if (productServies.IsValidDescription(msg.Chat.Id, description))
                         {
                             await bot.SendMessage(msg.Chat.Id, "Введіть ціну продукта:");
                             producStatus = "price";
@@ -469,7 +472,7 @@ public class Program
                         {
                             if(int.TryParse(msg.Text.Trim(),out int discount))
                             {
-                               if(!productServies.IsValidDiscount(msg.Chat.Id, discount))
+                               if(productServies.IsValidDiscount(msg.Chat.Id, discount))
                                {
                                     tempProduct.DiscountPercentage = discount;
                                     await bot.SendMessage(msg.Chat.Id, "Введіть категорію продукта:");
@@ -489,7 +492,8 @@ public class Program
                         break;
                     case "category":
                         var category = msg.Text.Trim();
-                        if(productServies.IsValidCategory(msg.Chat.Id, category))
+                        category = CapitalizeFirstLetter(category);
+                        if (productServies.IsValidCategory(msg.Chat.Id, category))
                         {
                             tempProduct.Category = category;
                             productServies.AddProduct(tempProduct);
@@ -547,6 +551,7 @@ public class Program
                 {
                     case "newName":
                         var name = msg.Text.Trim();
+                        name = CapitalizeFirstLetter(name);
                         if (productServies.IsValidName(msg.Chat.Id, name))
                         {
                             tempProduct.Name = name;
@@ -561,6 +566,7 @@ public class Program
                         break;
                     case "newDescription":
                         var description = msg.Text.Trim();
+                        description = CapitalizeFirstLetter(description);
                         if (productServies.IsValidDescription(msg.Chat.Id, description))
                         {
                             tempProduct.Description = description;
@@ -596,6 +602,7 @@ public class Program
                         break;
                     case "newCategory":
                         var category = msg.Text.Trim();
+                        category = CapitalizeFirstLetter(category);
                         if (productServies.IsValidCategory(msg.Chat.Id, category))
                         {
                             tempProduct.Category = category;
@@ -659,6 +666,15 @@ public class Program
             
         }
       
+    }
+    public static string CapitalizeFirstLetter(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        return text.Substring(0, 1).ToUpper() + text.Substring(1).ToLower();
     }
 
 }
